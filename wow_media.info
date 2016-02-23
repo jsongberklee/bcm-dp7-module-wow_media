@@ -1,0 +1,11 @@
+name = Wowza Media Player Collection
+description = Wowza Media player for the streaming service.
+package = Berklee College of Music
+project = "wow_media"
+datestamp = "1373924501"
+version = "7.x-1.0"
+core = 7.x
+#dependency below is disabled and the required function is temporary added to the module file.
+#dependencies[] = jsongutil
+dependencies[] = bcm_media
+stylesheets[all][] = wow_media.css

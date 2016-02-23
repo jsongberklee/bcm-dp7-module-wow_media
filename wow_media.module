@@ -1,0 +1,154 @@
+<?php
+/**
+ * Implements hook_field_formatter_info().
+ */
+function wow_media_field_formatter_info() {
+  return array(
+    'wow_media_live_stream' => array(
+      'label' => t('http live stream player'),
+      'field types' => array('text'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_formatter_view().
+ */
+function wow_media_field_formatter_view($entity_type, $entity, $field, $instance, $lang_code, $items, $display) {
+  $elements = array();
+
+	switch ($display['type']) {
+		case 'wow_media_live_stream':
+
+			// to validate the user access
+			global $user;
+			$userAccess = $user->uid;
+			$publicAccess = $entity->field_video_access['und'][0]['value'];
+			$access = _bcm_media_check_access($userAccess, $publicAccess);
+
+		  $browser = _get_browser_jsongutil();
+		  $modulePath =  file_create_url(drupal_get_path('module', 'wow_media'));
+		  $formatted = '<div class="wow_media wowza-player access-'.$access.'">';
+
+		  if(!$access){
+				// the query "video=autoplay" is not going to work due to implementing SSO
+				// need to find alternate solution for this
+				$loginLinks = l(t('Sorry, this video is only available to the currently enrolled Berklee student, click to login.'), 'onelogin_saml/sso', array('query' => array('destination' => '/'.drupal_get_path_alias(), 'video' => 'autoplay'), 'attributes' => array('title' => t('Click here to login'))));
+				$formatted .= '<h3>'.$loginLinks.'</h3>';
+			}
+			else{
+
+			  foreach ($items as $delta => $item) {
+					$url = $item['value'];
+					if(strpos($browser['userAgent'], 'Mobile Safari') !== FALSE || strpos($browser['name'], 'Apple Safari') !== FALSE){
+						// with autoplay
+						//$formatted .= '<video id="videoObj" x-webkit-airplay="allow" alt="" width="100%" height="485px" src="'.str_replace('manifest.f4m','playlist.m3u8', $url).'" controls '.(strpos($url,'DVR') !== FALSE ? '' : 'autoplay').' >';
+						//without autoplay
+						$formatted .= '<video id="bcm-media" x-webkit-airplay="allow" alt="" width="100%" height="485px" src="'.str_replace('manifest.f4m','playlist.m3u8', $url).'" controls>';
+					}
+					else{
+						$formatted .= '
+						  <object type="application/x-shockwave-flash" name="StrobeMediaPlayback" data="'.$modulePath.'/StrobeMediaPlayback.swf" id="StrobeMediaPlayback" style="visibility: visible;" width="970" height="485">
+						  	<param name="allowFullScreen" value="true">
+						  	<param name="wmode" value="direct">
+						  	<param name="flashvars" value="src='.str_replace('playlist.m3u8', 'manifest.f4m', $url).'&amp;autoPlay=false&amp;verbose=true&amp;controlBarAutoHide=false&amp;controlBarPosition=bottom&amp;playButton=Connect">
+						  </object>';
+					}
+				}
+
+		  }
+
+		  $formatted .= '</div>';
+		  $elements[0]['#markup'] = $formatted;
+
+		break;
+	}
+
+  return $elements;
+}
+
+/*
+ * this function is originally part of jsongutil module,
+ * original name: _get_browser
+ * @description: returns an array of browser information
+ * @parameters: none
+ */
+function _get_browser_jsongutil()
+{
+    $u_agent = $_SERVER['HTTP_USER_AGENT'];
+    $bname = 'Unknown';
+    $platform = 'Unknown';
+    $version= "";
+    $ub = "";
+
+    if (preg_match('/linux/i', $u_agent)) {
+        $platform = 'linux';
+    }
+    elseif (preg_match('/macintosh|mac os x/i', $u_agent)) {
+        $platform = 'mac';
+    }
+    elseif (preg_match('/windows|win32/i', $u_agent)) {
+        $platform = 'windows';
+    }
+
+    if(preg_match('/MSIE/i',$u_agent) && !preg_match('/Opera/i',$u_agent))
+    {
+        $bname = 'Internet Explorer';
+        $ub = "MSIE";
+    }
+    elseif(preg_match('/Firefox/i',$u_agent))
+    {
+        $bname = 'Mozilla Firefox';
+        $ub = "Firefox";
+    }
+    elseif(preg_match('/Chrome/i',$u_agent))
+    {
+        $bname = 'Google Chrome';
+        $ub = "Chrome";
+    }
+    elseif(preg_match('/Safari/i',$u_agent))
+    {
+        $bname = 'Apple Safari';
+        $ub = "Safari";
+    }
+    elseif(preg_match('/Opera/i',$u_agent))
+    {
+        $bname = 'Opera';
+        $ub = "Opera";
+    }
+    elseif(preg_match('/Netscape/i',$u_agent))
+    {
+        $bname = 'Netscape';
+        $ub = "Netscape";
+    }
+
+    $known = array('Version', $ub, 'other');
+    $pattern = '#(?<browser>' . join('|', $known) .
+    ')[/ ]+(?<version>[0-9.|a-zA-Z.]*)#';
+    if (!preg_match_all($pattern, $u_agent, $matches)) {
+        // we have no matching number just continue
+    }
+
+    $i = count($matches['browser']);
+    if ($i != 1) {
+        if (strripos($u_agent,"Version") < strripos($u_agent,$ub)){
+            $version= $matches['version'][0];
+        }
+        else {
+            $version= $matches['version'][1];
+        }
+    }
+    else {
+        $version= $matches['version'][0];
+    }
+
+    if ($version==null || $version=="") {$version="?";}
+
+    return array(
+        'userAgent' => $u_agent,
+        'name'      => $bname,
+        'version'   => $version,
+        'platform'  => $platform,
+        'pattern'    => $pattern
+    );
+}
